@@ -1,6 +1,5 @@
 require "test/setup"
 
-
 # 3.  Obtaining End-User Authorization
 class AuthorizationTest < Test::Unit::TestCase
   module Helpers
@@ -138,7 +137,7 @@ class AuthorizationTest < Test::Unit::TestCase
         setup { @return = Rack::Utils.parse_query(URI.parse(last_response["Location"]).query) }
 
         should "include authorization code" do
-          assert_match /[a-f0-9]{32}/i, @return["code"]
+          assert_match ACCESS_TOKEN_REGEX, @return["code"]
         end
 
         should "include original scope" do
@@ -205,7 +204,7 @@ class AuthorizationTest < Test::Unit::TestCase
         setup { @return = Rack::Utils.parse_query(URI.parse(last_response["Location"]).fragment) }
 
         should "include access token" do
-          assert_match /[a-f0-9]{32}/i, @return["access_token"]
+          assert_match ACCESS_TOKEN_REGEX, @return["access_token"]
         end
 
         should "include original scope" do
@@ -289,7 +288,7 @@ class AuthorizationTest < Test::Unit::TestCase
 
   context "unregistered redirect URI" do
     setup do
-      Rack::OAuth2::Server::Client.collection.update({ :_id=>client._id }, { :$set=>{ :redirect_uri=>nil } })
+      client.update_attribute :redirect_uri, nil
       request_authorization :redirect_uri=>"http://uberclient.dot/oz"
     end
     should_ask_user_for_authorization
