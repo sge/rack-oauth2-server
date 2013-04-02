@@ -42,9 +42,9 @@ module Rack
         # @return [Client, nil] Client if authenticated, or while authorizing
         def client
           if access_token
-            @client ||= Server.get_client(Server.get_access_token(access_token).client_id)
+            @client ||= Server.get_client(Server.get_access_token(access_token).client_uuid)
           elsif authorization
-            @client ||= Server.get_client(Server.get_auth_request(authorization).client_id)
+            @client ||= Server.get_client(Server.get_auth_request(authorization).client_uuid)
           end
         end
 

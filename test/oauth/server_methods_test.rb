@@ -77,7 +77,7 @@ class ServerTest < Test::Unit::TestCase
       end
 
       should "assign client an ID" do
-        assert_match /[0-9a-f]{24}/, @client.id.to_s
+        assert_match /[0-9a-f]{24}/, @client.uuid.to_s
       end
 
       should "assign client a secret" do
@@ -97,7 +97,7 @@ class ServerTest < Test::Unit::TestCase
         end
 
         should "should assign it the client identifier" do
-          assert_equal "4ce24c423321e88ac5000015", @client.id.to_s
+          assert_equal "4ce24c423321e88ac5000015", @client.uuid.to_s
         end
 
         should "should assign it the client secret" do
@@ -120,7 +120,7 @@ class ServerTest < Test::Unit::TestCase
         end
 
         should "should not change the client identifier" do
-          assert_equal "4ce24c423321e88ac5000015", @client.id.to_s
+          assert_equal "4ce24c423321e88ac5000015", @client.uuid.to_s
         end
 
         should "should not change the client secret" do
@@ -169,11 +169,11 @@ class ServerTest < Test::Unit::TestCase
     end
 
     should "resolve into access token with grant client" do
-      assert_equal client.id, Server.get_access_token(@token).client_id
+      assert_equal client.uuid, Server.get_access_token(@token).client_uuid
     end
 
     context "with no scope" do
-      setup { @code = Server.access_grant("Batman", client.id) }
+      setup { @code = Server.access_grant("Batman", client.uuid) }
 
       should "pick client scope" do
         assert_equal %w{oauth-admin read write}, Server::AccessGrant.from_code(@code).scope
@@ -255,7 +255,7 @@ class ServerTest < Test::Unit::TestCase
     end
 
     should "associate token with client" do
-      assert_equal client.id, Server.get_access_token(@token).client_id
+      assert_equal client.uuid, Server.get_access_token(@token).client_uuid
     end
 
     should "associate token with identity" do

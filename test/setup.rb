@@ -15,9 +15,11 @@ require "rack/oauth2/server/admin"
 
 ENV["RACK_ENV"] = "test"
 ENV["DB"] = "rack_oauth2_server_test"
-DATABASE = Mongo::Connection.new[ENV["DB"]]
+# DATABASE = Mongo::Connection.new[ENV["DB"]]
 FRAMEWORK = ENV["FRAMEWORK"] || "sinatra"
 
+
+Mongoid.load!("./test/mongoid.yml", :test)
 
 $logger = Logger.new("test.log")
 $logger.level = Logger::DEBUG

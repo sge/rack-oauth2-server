@@ -97,7 +97,7 @@ class AccessGrantTest < Test::Unit::TestCase
   
   def request_with_username_password_json(username, password, scope = nil)
     body_content = {
-      :client_id => client.id.to_s,
+      :client_id => client.uuid.to_s,
       :client_secret => client.secret,
       :grant_type => 'password',
       :username => username,

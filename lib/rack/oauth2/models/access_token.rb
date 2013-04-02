@@ -7,11 +7,28 @@ module Rack
       # An access token is a unique code, associated with a client, an identity
       # and scope. It may be revoked, or expire after a certain period.
       class AccessToken
+        include ::Mongoid::Document
+        include ::Mongoid::Timestamps
+        include ::Mongoid::UUID
+
+        field :identity, type: String # The identity we authorized access to.
+        field :client_uuid, type: String # Client that was granted this access token.
+        field :scope, type: String # The scope granted to this token.
+        field :expires_at, type: DateTime # When token expires for good.
+        field :revoked_at, type: DateTime # Timestamp if revoked.
+        field :last_accessed_at, type: DateTime # Timestamp of last access using this token, rounded up to hour.
+        field :prev_accessed_at, type: DateTime # Timestamp of previous access using this token, rounded up to hour.
+
+        def token; uuid; end
+
+        index client_uuid: 1
+        index identity: 1
+
         class << self
 
           # Find AccessToken from token. Does not return revoked tokens.
           def from_token(token)
-            Server.new_instance self, collection.find_one({ :_id=>token, :revoked=>nil })
+            where( uuid: token, revoked_at: nil ).first
           end
 
           # Get an access token (create new one if necessary).
@@ -19,43 +36,37 @@ module Rack
           # You can set optional expiration in seconds. If zero or nil, token
           # never expires.
           def get_token_for(identity, client, scope, expires = nil)
-            raise ArgumentError, "Identity must be String or Integer" unless String === identity || Integer === identity
+            raise ArgumentError, "Identity must be String or Integer (got: #{identity.inspect})" unless String === identity || Integer === identity
             scope = Utils.normalize_scope(scope) & client.scope # Only allowed scope
 
-            token = collection.find_one({
-              :$or=>[{:expires_at=>nil}, {:expires_at=>{:$gt=>Time.now.to_i}}],
-              :identity=>identity, :scope=>scope,
-              :client_id=>client.id, :revoked=>nil})
+            token = where( identity: identity, scope: scope, client_uuid: client.uuid, revoked_at: nil ).where(["expires_at > ? OR expires_at = ?", Time.now, nil]).first
 
-            unless token
-              return create_token_for(client, scope, identity, expires)
-            end
-            Server.new_instance self, token
+            return token ? token : create_token_for(client,scope,identity,expires)
           end
 
           # Creates a new AccessToken for the given client and scope.
           def create_token_for(client, scope, identity = nil, expires = nil)
             expires_at = Time.now.to_i + expires if expires && expires != 0
-            token = { :_id=>Server.secure_random, :scope=>scope,
-                      :client_id=>client.id, :created_at=>Time.now.to_i,
-                      :expires_at=>expires_at, :revoked=>nil }
-            token[:identity] = identity if identity
-            collection.insert token
-            Client.collection.update({ :_id=>client.id }, { :$inc=>{ :tokens_granted=>1 } })
-            Server.new_instance self, token
+
+            token = self.create({ scope: scope, client_uuid: client.uuid, expires_at: expires_at, identity: identity })
+
+            if token
+              client.inc :tokens_granted
+              return token
+            else
+              raise "unable to create access token"
+            end
           end
 
           # Find all AccessTokens for an identity.
           def from_identity(identity)
-            collection.find({ :identity=>identity }).map { |fields| Server.new_instance self, fields }
+            where(identity:identity)
           end
 
           # Returns all access tokens for a given client, Use limit and offset
           # to return a subset of tokens, sorted by creation date.
-          def for_client(client_id, offset = 0, limit = 100)
-            client_id = BSON::ObjectId(client_id.to_s)
-            collection.find({ :client_id=>client_id }, { :sort=>[[:created_at, Mongo::ASCENDING]], :skip=>offset, :limit=>limit }).
-              map { |token| Server.new_instance self, token }
+          def for_client(client_uuid, offset = 0, limit = 100)
+            where( client_uuid: client_uuid ).sort(created_at:1).offset(offset).limit(limit)
           end
 
           # Returns count of access tokens.
@@ -89,55 +100,25 @@ module Rack
             raw.sort { |a, b| a["ts"] - b["ts"] }
           end
 
-          def collection
-            prefix = Server.options[:collection_prefix]
-            Server.database["#{prefix}.access_tokens"]
-          end
+          # def collection
+          #   prefix = Server.options[:collection_prefix]
+          #   Server.database["#{prefix}.access_tokens"]
+          # end
         end
-
-        # Access token. As unique as they come.
-        attr_reader :_id
-        alias :token :_id
-        # The identity we authorized access to.
-        attr_reader :identity
-        # Client that was granted this access token.
-        attr_reader :client_id
-        # The scope granted to this token.
-        attr_reader :scope
-        # When token was granted.
-        attr_reader :created_at
-        # When token expires for good.
-        attr_reader :expires_at
-        # Timestamp if revoked.
-        attr_accessor :revoked
-        # Timestamp of last access using this token, rounded up to hour.
-        attr_accessor :last_access
-        # Timestamp of previous access using this token, rounded up to hour.
-        attr_accessor :prev_access
 
         # Updates the last access timestamp.
         def access!
-          today = (Time.now.to_i / 3600) * 3600
-          if last_access.nil? || last_access < today
-            AccessToken.collection.update({ :_id=>token }, { :$set=>{ :last_access=>today, :prev_access=>last_access } })
-            self.last_access = today
-          end
+          self.last_accessed_at = Time.now
+          self.save
         end
 
         # Revokes this access token.
         def revoke!
-          self.revoked = Time.now.to_i
-          AccessToken.collection.update({ :_id=>token }, { :$set=>{ :revoked=>revoked } })
-          Client.collection.update({ :_id=>client_id }, { :$inc=>{ :tokens_revoked=>1 } })
+          self.revoked_at = Time.now
+          self.save
+          client = Client.where(uuid:client_uuid).inc :tokens_revoked
         end
 
-        Server.create_indexes do
-          # Used to revoke all pending access grants when revoking client.
-          collection.create_index [[:client_id, Mongo::ASCENDING]]
-          # Used to get/revoke access tokens for an identity, also to find and
-          # return existing access token.
-          collection.create_index [[:identity, Mongo::ASCENDING]]
-        end
       end
 
     end

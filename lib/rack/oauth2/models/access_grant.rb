@@ -5,52 +5,34 @@ module Rack
       # The access grant is a nonce, new grant created each time we need it and
       # good for redeeming one access token.
       class AccessGrant
+        include ::Mongoid::Document
+        include ::Mongoid::Timestamps
+        include ::Mongoid::UUID
+
+        field :identity, type: String     # The identity we authorized access to.
+        field :client_uuid, type: String  # Client that was granted this access token.
+        field :redirect_uri, type: String # Redirect URI for this grant.
+        field :scope, type: String        # The scope requested in this grant.
+        field :granted_at, type: DateTime # Tells us when (and if) access token was created.
+        field :expires_at, type: DateTime # Tells us when this grant expires.
+        field :access_token, type: String # Access token created from this grant. Set and spent.
+        field :revoked_at, type: DateTime # Timestamp if revoked.
+
+        index client_uuid: 1
+
+        # alias :code :uuid
+        def code; uuid; end
+
         class << self
           # Find AccessGrant from authentication code.
           def from_code(code)
-            Server.new_instance self, collection.find_one({ :_id=>code, :revoked=>nil })
-          end
-
-          # Create a new access grant.
-          def create(identity, client, scope, redirect_uri = nil, expires = nil)
-            raise ArgumentError, "Identity must be String or Integer" unless String === identity || Integer === identity
-            scope = Utils.normalize_scope(scope) & client.scope # Only allowed scope
-            expires_at = Time.now.to_i + (expires || 300)
-            fields = { :_id=>Server.secure_random, :identity=>identity, :scope=>scope,
-                       :client_id=>client.id, :redirect_uri=>client.redirect_uri || redirect_uri,
-                       :created_at=>Time.now.to_i, :expires_at=>expires_at, :granted_at=>nil,
-                       :access_token=>nil, :revoked=>nil }
-            collection.insert fields
-            Server.new_instance self, fields
-          end
-
-          def collection
-            prefix = Server.options[:collection_prefix]
-            Server.database["#{prefix}.access_grants"]
+            self.where(uuid:code).first
           end
         end
 
-        # Authorization code. We are nothing without it.
-        attr_reader :_id
-        alias :code :_id
-        # The identity we authorized access to.
-        attr_reader :identity
-        # Client that was granted this access token.
-        attr_reader :client_id
-        # Redirect URI for this grant.
-        attr_reader :redirect_uri
-        # The scope requested in this grant.
-        attr_reader :scope
-        # Does what it says on the label.
-        attr_reader :created_at
-        # Tells us when (and if) access token was created.
-        attr_accessor :granted_at
-        # Tells us when this grant expires.
-        attr_accessor :expires_at
-        # Access token created from this grant. Set and spent.
-        attr_accessor :access_token
-        # Timestamp if revoked.
-        attr_accessor :revoked
+        def client
+          Client.where(uuid: self.client_uuid).first
+        end
 
         # Authorize access and return new access token.
         #
@@ -58,27 +40,39 @@ module Rack
         # requests to obtain it, so we need to make sure only first request is
         # successful in returning access token, futher requests raise
         # InvalidGrantError.
+        #
         def authorize!(expires_in = nil)
-          raise InvalidGrantError, "You can't use the same access grant twice" if self.access_token || self.revoked
-          client = Client.find(client_id) or raise InvalidGrantError
-          access_token = AccessToken.get_token_for(identity, client, scope, expires_in)
+          raise InvalidGrantError, "You can't use the same access grant twice" if self.access_token || self.revoked_at.present?
+          raise InvalidGrantError unless client.present?
+
+          AccessGrant.all.each do |ag|
+            puts "~~~>> #{ag.inspect}"
+          end
+
+          puts "~~~>"
+          puts "~~~~~~~~~~~~>>>> #{self.inspect}"
+          puts "~~~>"
+
+          puts "~~~~>> ABOUT TO AUTHORIZE THE GRANT!!"
+          puts "~~~>> #{self.identity.inspect}"
+          puts "~~~~>> GUHH??"
+
+          puts "~~~~~~~~~~~~~~~~>>>>>> THIS IS MY IDENTITY ~~~~~~~~~>>>>>> #{self.attributes['identity']}"
+
+          access_token = AccessToken.get_token_for(self.attributes['identity'], client, scope, expires_in)
+
           self.access_token = access_token.token
-          self.granted_at = Time.now.to_i
-          self.class.collection.update({ :_id=>code, :access_token=>nil, :revoked=>nil }, { :$set=>{ :granted_at=>granted_at, :access_token=>access_token.token } }, :safe=>true)
-          reload = self.class.collection.find_one({ :_id=>code, :revoked=>nil }, { :fields=>%w{access_token} })
-          raise InvalidGrantError unless reload && reload["access_token"] == access_token.token
+          self.granted_at   = Time.now.to_i
+          self.save!
+
           return access_token
         end
 
         def revoke!
-          self.revoked = Time.now.to_i
-          self.class.collection.update({ :_id=>code, :revoked=>nil }, { :$set=>{ :revoked=>revoked } })
+          revoked_at = Time.now.to_i
+          save!
         end
 
-        Server.create_indexes do
-          # Used to revoke all pending access grants when revoking client.
-          collection.create_index [[:client_id, Mongo::ASCENDING]]
-        end
       end
 
     end

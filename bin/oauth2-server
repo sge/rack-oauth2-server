@@ -36,7 +36,7 @@ when "list"
 
   fail "No database. Use the --db option to tell us which database to use" unless Server.options.database
   Server::Client.all.each do |client|
-    next if client.revoked
+    next if client.revoked_at.present?
     print "%-30s\t%s\n" % [client.display_name, client.link]
     print "  ID %s\tSecret %s\n" % [client.id, client.secret]
     print "\n"

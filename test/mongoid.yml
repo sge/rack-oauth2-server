@@ -1,0 +1,6 @@
+test:
+  sessions:
+    default:
+      database: mongoid_test2
+      hosts:
+        - localhost:27017

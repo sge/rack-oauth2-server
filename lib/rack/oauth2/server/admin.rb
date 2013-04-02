@@ -168,9 +168,9 @@ module Rack
           end
         end
 
-        get "/api/client/:id" do
+        get "/api/client/:uuid" do
           content_type "application/json"
-          client = Server::Client.find(params[:id])
+          client = Server::Client.where(uuid:params[:uuid]).first
           json = client_as_json(client, true)
 
           page = [params[:page].to_i, 1].max
@@ -189,24 +189,24 @@ module Rack
           json.to_json
         end
 
-        get "/api/client/:id/history" do
+        get "/api/client/:uuid/history" do
           content_type "application/json"
-          client = Server::Client.find(params[:id])
-          { :data=>Server::AccessToken.historical(:client_id=>client.id) }.to_json
+          client = Server::Client.where(uuid:params[:uuid]).first
+          { :data=>Server::AccessToken.historical(:client_uuid=>client.uuid) }.to_json
         end
 
-        put "/api/client/:id" do
-          client = Server::Client.find(params[:id])
+        put "/api/client/:uuid" do
+          client = Server::Client.where(uuid:params[:uuid]).first
           begin
             client.update validate_params(params)
-            redirect "#{request.script_name}/api/client/#{client.id}"
+            redirect "#{request.script_name}/api/client/#{client.uuid}"
           rescue
             halt 400, $!.message
           end
         end
 
-        delete "/api/client/:id" do
-          Server::Client.delete(params[:id])
+        delete "/api/client/:uuid" do
+          Server::Client.where(uuid:params[:uuid]).destroy
           200
         end
 
@@ -244,7 +244,7 @@ module Rack
           end
 
           def client_as_json(client, with_stats = false)
-            { "id"=>client.id.to_s, "secret"=>client.secret, :redirectUri=>client.redirect_uri,
+            { "id"=>client.uuid.to_s, "secret"=>client.secret, :redirectUri=>client.redirect_uri,
               :displayName=>client.display_name, :link=>client.link, :imageUrl=>client.image_url,
               :notes=>client.notes, :scope=>client.scope,
               :url=>"#{request.script_name}/api/client/#{client.id}",

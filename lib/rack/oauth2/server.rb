@@ -26,16 +26,16 @@ module Rack
         # oauth.authorization)
         # @return [AuthReqeust]
         def get_auth_request(authorization)
-          AuthRequest.find(authorization)
+          AuthRequest.where(uuid:authorization).first
         end
 
         # Returns Client from client identifier.
         #
-        # @param [String] client_id Client identifier (e.g. from oauth.client.id)
+        # @param [String] client_id Client identifier (e.g. from oauth.client.uuid)
         # @return [Client]
-        def get_client(client_id)
-          return client_id if Client === client_id
-          Client.find(client_id)
+        def get_client(client_uuid)
+          return client_uuid if Client === client_uuid
+          Client.where(uuid:client_uuid).first
         end
 
         # Registers and returns a new Client. Can also be used to update
@@ -268,7 +268,7 @@ module Rack
         if token
           begin
             access_token = AccessToken.from_token(token)
-            raise InvalidTokenError if access_token.nil? || access_token.revoked
+            raise InvalidTokenError if access_token.nil? || access_token.revoked_at.present?
             raise ExpiredTokenError if access_token.expires_at && access_token.expires_at <= Time.now.to_i
             request.env["oauth.access_token"] = token
 
@@ -323,15 +323,15 @@ module Rack
 
           if request.GET["authorization"]
             auth_request = self.class.get_auth_request(request.GET["authorization"]) rescue nil
-            if !auth_request || auth_request.revoked
+            if !auth_request || auth_request.revoked_at.present?
               logger.error "RO2S: Invalid authorization request #{auth_request}" if logger
               return bad_request("Invalid authorization request")
             end
             response_type = auth_request.response_type # Needed for error handling
-            client = self.class.get_client(auth_request.client_id)
+            client = self.class.get_client(auth_request.client_uuid)
             # Pass back to application, watch for 403 (deny!)
             logger.info "RO2S: Client #{client.display_name} requested #{auth_request.response_type} with scope #{auth_request.scope.join(" ")}" if logger
-            request.env["oauth.authorization"] = auth_request.id.to_s
+            request.env["oauth.authorization"] = auth_request.uuid.to_s
             response = @app.call(request.env)
             raise AccessDeniedError if response[0] == 403
             return response
@@ -358,7 +358,7 @@ module Rack
             # handle the rest.
             auth_request = AuthRequest.create(client, requested_scope, redirect_uri.to_s, response_type, state)
             uri = URI.parse(request.url)
-            uri.query = "authorization=#{auth_request.id.to_s}"
+            uri.query = "authorization=#{auth_request.uuid.to_s}"
             return redirect_to(uri, 303)
           end
         rescue OAuthError=>error
@@ -384,25 +384,26 @@ module Rack
         if status == 403
           auth_request.deny!
         else
+          puts "~~~~>>> GRANTING WITH oauth.identity BRO!! WHICH IS: #{headers["oauth.identity"]}"
           auth_request.grant! headers["oauth.identity"], options.expires_in
         end
         # 3.1.  Authorization Response
         if auth_request.response_type == "code"
           if auth_request.grant_code
-            logger.info "RO2S: Client #{auth_request.client_id} granted access code #{auth_request.grant_code}" if logger
+            logger.info "RO2S: Client #{auth_request.client_uuid} granted access code #{auth_request.grant_code}" if logger
             params = { :code=>auth_request.grant_code, :scope=>auth_request.scope.join(" "), :state=>auth_request.state }
           else
-            logger.info "RO2S: Client #{auth_request.client_id} denied authorization" if logger
+            logger.info "RO2S: Client #{auth_request.client_uuid} denied authorization" if logger
             params = { :error=>:access_denied, :state=>auth_request.state }
           end
           params = Rack::Utils.parse_query(redirect_uri.query).merge(params)
           redirect_uri.query = Rack::Utils.build_query(params)
         else # response type if token
           if auth_request.access_token
-            logger.info "RO2S: Client #{auth_request.client_id} granted access token #{auth_request.access_token}" if logger
+            logger.info "RO2S: Client #{auth_request.client_uuid} granted access token #{auth_request.access_token}" if logger
             params = { :access_token=>auth_request.access_token, :scope=>auth_request.scope.join(" "), :state=>auth_request.state }
           else
-            logger.info "RO2S: Client #{auth_request.client_id} denied authorization" if logger
+            logger.info "RO2S: Client #{auth_request.client_uuid} denied authorization" if logger
             params = { :error=>:access_denied, :state=>auth_request.state }
           end
           redirect_uri.fragment = Rack::Utils.build_query(params)
@@ -424,7 +425,8 @@ module Rack
           when "authorization_code"
             # 4.1.1.  Authorization Code
             grant = AccessGrant.from_code(request.POST["code"])
-            raise InvalidGrantError, "Wrong client" unless grant && client.id == grant.client_id
+            raise InvalidGrantError, "Wrong client" unless grant && client.uuid == grant.client_uuid
+
             unless client.redirect_uri.nil? || client.redirect_uri.to_s.empty?
               raise InvalidGrantError, "Wrong redirect URI" unless grant.redirect_uri == Utils.parse_redirect_uri(request.POST["redirect_uri"]).to_s
             end
@@ -439,7 +441,7 @@ module Rack
             allowed_scope = client.scope
             raise InvalidScopeError unless (requested_scope - allowed_scope).empty?
             args = [username, password]
-            args << client.id << requested_scope unless options.authenticator.arity == 2
+            args << client.uuid << requested_scope unless options.authenticator.arity == 2
             identity = options.authenticator.call(*args)
             raise InvalidGrantError, "Username/password do not match" unless identity
             access_token = AccessToken.get_token_for(identity, client, requested_scope, options.expires_in)
@@ -492,10 +494,10 @@ module Rack
         unless options[:dont_authenticate]
           raise InvalidClientError unless client.secret == client_secret
         end
-        raise InvalidClientError if client.revoked
+        raise InvalidClientError if client.revoked_at.present?
         return client
-      rescue BSON::InvalidObjectId
-        raise InvalidClientError
+      # rescue BSON::InvalidObjectId
+      #   raise InvalidClientError
       end
 
       # Rack redirect response.
