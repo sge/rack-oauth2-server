@@ -59,8 +59,7 @@ module Rack
         end
 
         def revoke!
-          revoked_at = Time.now
-          save!
+          update_attribute :revoked_at, Time.now
         end
 
       end

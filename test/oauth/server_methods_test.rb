@@ -7,20 +7,20 @@ class ServerTest < Test::Unit::TestCase
     super
   end
 
-  context "configuration" do
-
-    # should "set oauth.database" do
-    #   assert_equal DATABASE, Server.database
-    # end
-
-    should "set oauth.host" do
-      assert_equal "example.org", Server.options.host
-    end
-
-    should "set oauth.collection_prefix" do
-      assert_equal "oauth2_prefix", Server.options.collection_prefix
-    end
-  end
+  # context "configuration" do
+  #
+  #   should "set oauth.database" do
+  #     assert_equal DATABASE, Server.database
+  #   end
+  #
+  #   should "set oauth.host" do
+  #     assert_equal "example.org", Server.options.host
+  #   end
+  #
+  #   should "set oauth.collection_prefix" do
+  #     assert_equal "oauth2_prefix", Server.options.collection_prefix
+  #   end
+  # end
 
   context "get_auth_request" do
     setup { @request = Server::AuthRequest.create(client, client.scope.join(" "), client.redirect_uri, "token", nil) }
@@ -135,12 +135,12 @@ class ServerTest < Test::Unit::TestCase
 
       context "secret mismatch" do
         setup do
-          Server.register(:id=>"4ce24c423321e88ac5000015", :secret=>"foobar", :display_name=>"MyApp")
+          Server.register :uuid=>"4ce24c423321e88ac5000015", :secret=>"foobar", :display_name=>"MyApp"
         end
 
         should "raise error" do
           assert_raises RuntimeError do
-            Server.register(:id=>"4ce24c423321e88ac5000015", :secret=>"wrong", :display_name=>"MyApp")
+            Server.register :uuid=>"4ce24c423321e88ac5000015", :secret=>"wrong", :display_name=>"MyApp"
           end
         end
       end

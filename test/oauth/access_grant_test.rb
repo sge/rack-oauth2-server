@@ -197,7 +197,8 @@ class AccessGrantTest < Test::Unit::TestCase
 
   context "authorization code revoked" do
     setup do
-      Server::AccessGrant.from_code(@code).revoke!
+      grant = Server::AccessGrant.from_code(@code)
+      grant.revoke!
       request_access_token
     end
     should_return_error :invalid_grant

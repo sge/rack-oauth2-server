@@ -70,9 +70,10 @@ module Rack
         #     :scope=>config["scope"],
         #     :redirect_uri=>"http://example.com/oauth/callback"
         def register(args)
-          if args[:id] && args[:secret] && (client = get_client(args[:id]))
+          if args[:uuid] && args[:secret] && (client = get_client(args[:uuid]))
             fail "Client secret does not match" unless client.secret == args[:secret]
-            client.update args
+            client.update_attributes args
+            client
           else
             Client.create(args)
           end
@@ -90,12 +91,13 @@ module Rack
         # @return [String] Access grant authorization code
         def access_grant(identity, client_id, scope = nil, expires_in = nil)
           client = get_client(client_id) or fail "No such client"
+          expiration = Time.now + ( expires_in.present? ? expires_in : 300.seconds )
           AccessGrant.create({ 
             identity: identity, 
             client_uuid: client.uuid, 
             redirect_uri: client.redirect_uri,
             scope: scope || client.scope, 
-            expires_at: expires_in
+            expires_at: expiration
           }).code
         end
 
