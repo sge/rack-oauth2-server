@@ -48,7 +48,7 @@ class AccessGrantTest < Test::Unit::TestCase
         assert JSON.parse(last_response.body)["error"].nil?
       end
       should "response with access token" do
-        assert_match /[a-f0-9]{32}/i, JSON.parse(last_response.body)["access_token"]
+        assert_match ACCESS_TOKEN_REGEX, JSON.parse(last_response.body)["access_token"]
       end
       should "response with scope" do
         assert_equal scope || "", JSON.parse(last_response.body)["scope"]
@@ -185,7 +185,11 @@ class AccessGrantTest < Test::Unit::TestCase
 
   context "authorization code for different client" do
     setup do
-      grant = Server::AccessGrant.create("foo bar", Server.register(:scope=>%w{read write}), "read write", nil)
+      grant = Server::AccessGrant.create({
+        identity: "foo bar", 
+        client_uuid: Server.register(:scope=>%w{read write}).uuid, 
+        scope: %w{read write}
+      })
       request_access_token :code=>grant.code
     end
     should_return_error :invalid_grant
@@ -207,7 +211,11 @@ class AccessGrantTest < Test::Unit::TestCase
   context "no redirect URI to match" do
     setup do
       @client = Server.register(:display_name=>"No rediret", :scope=>"read write")
-      grant = Server::AccessGrant.create("foo bar", client, "read write", nil)
+      grant = Server::AccessGrant.create({ 
+        identity: "foo bar", 
+        client_uuid: client.uuid,
+        scope: %w{read write}
+      })
       request_access_token :code=>grant.code, :redirect_uri=>"http://uberclient.dot/oz"
     end
     should_respond_with_access_token
@@ -339,7 +347,7 @@ class AccessGrantTest < Test::Unit::TestCase
 
     context "JWT" do
       setup {
-        @hour_from_now = Time.now.utc.to_i + (60 * 60)
+        @hour_from_now = Time.now + 1.hour
       }
       context "malformed assertion" do
         setup { request_with_assertion "urn:ietf:params:oauth:grant-type:jwt-bearer", "myassertion" }

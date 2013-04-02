@@ -69,10 +69,10 @@ module Rack
         # Revoke all authorization requests, access grants and access tokens for
         # this client. Ward off the evil.
         def revoke!
-          self.update_attribute :revoked_at, Time.now.to_i
-          AuthRequest.where(client_uuid:uuid).update_attribute :revoked_at, Time.now
-          AccessGrant.where(client_uuid:uuid).update_attribute :revoked_at, Time.now
-          AccessToken.where(client_uuid:uuid).update_attribute :revoked_at, Time.now
+          self.update_attribute :revoked_at, Time.now
+          AuthRequest.where(client_uuid:uuid).each { |d| d.update_attribute :revoked_at, Time.now }
+          AccessGrant.where(client_uuid:uuid).each { |d| d.update_attribute :revoked_at, Time.now }
+          AccessToken.where(client_uuid:uuid).each { |d| d.update_attribute :revoked_at, Time.now }
         end
 
         # def update(args)

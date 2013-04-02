@@ -10,9 +10,7 @@ module Rack
 
           # Find AuthRequest from identifier.
           def find(request_id)
-            id = BSON::ObjectId(request_id.to_s)
-            Server.new_instance self, collection.find_one(id)
-          rescue BSON::InvalidObjectId
+            where({ uuid: request_id }).first
           end
 
           # Create a new authorization request. This holds state, so in addition
@@ -31,7 +29,7 @@ module Rack
 
         field :identifier, type: String
         field :client_uuid, type: String      # client making the request
-        field :scope, type: Array             # scope of the request (array of names)
+        field :scope, type: Array, default: []             # scope of the request (array of names)
         field :redirect_uri, type: String     # Redirect back to this URL.
         field :state, type: String            # client requested we return state on redirect
         field :responst_type, type: String    # either code or token
@@ -48,8 +46,12 @@ module Rack
           client = Client.where(uuid:client_uuid).first or return
           self.authorized_at = Time.now
           if response_type == "code" # Requested authorization code
-            puts "~~~>>> CREATING AN ACCESSGRANT IDENT IS------::: #{identity}"
-            access_grant = AccessGrant.create(identity: identity, client_uuid: client.uuid, scope: scope, redirect_uri: redirect_uri)
+            access_grant = AccessGrant.create({
+              identity: identity, 
+              client_uuid: client.uuid, 
+              scope: scope, 
+              redirect_uri: redirect_uri
+            })
             self.grant_code = access_grant.code
             self.save
           else # Requested access token
@@ -62,7 +64,7 @@ module Rack
 
         # Deny access.
         def deny!
-          self.authorized_at = Time.now.to_i
+          self.authorized_at = Time.now
           self.save
         end
 

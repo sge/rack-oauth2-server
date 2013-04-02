@@ -115,7 +115,7 @@ class AdminApiTest < Test::Unit::TestCase
         assert_equal client.image_url, @first["imageUrl"]
       end
       should "provide created timestamp" do
-        assert_equal client.created_at.to_i, @first["created"]
+        assert_equal client.created_at, DateTime.parse(@first["created"])
       end
       should "provide link to client resource"do
         assert_equal ["/oauth/admin/api/client", client.id].join("/"), @first["url"]
@@ -124,7 +124,7 @@ class AdminApiTest < Test::Unit::TestCase
         assert_equal ["/oauth/admin/api/client", client.id, "revoke"].join("/"), @first["revoke"]
       end
       should "provide scope for client" do
-        assert_equal %w{oauth-admin read write}, @first["scope"]
+        assert_equal %w{oauth-admin read write}.sort, @first["scope"].sort
       end
       should "tell if not revoked" do
         assert @first["revoked"].nil?
@@ -140,7 +140,7 @@ class AdminApiTest < Test::Unit::TestCase
       end
 
       should "provide revoked timestamp" do
-        assert_equal client.revoked.to_i, @first["revoked"]
+        assert_equal client.revoked_at, DateTime.parse(@first["revoked_at"])
       end
     end
 
@@ -214,7 +214,7 @@ class AdminApiTest < Test::Unit::TestCase
         assert_equal client.image_url, json["imageUrl"]
       end
       should "provide created timestamp" do
-        assert_equal client.created_at.to_i, json["created"]
+        assert_equal client.created_at, DateTime.parse(json["created"])
       end
       should "provide link to client resource"do
         assert_equal ["/oauth/admin/api/client", client.id].join("/"), json["url"]

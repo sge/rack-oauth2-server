@@ -11,11 +11,11 @@ module Rack
         include ::Mongoid::Timestamps
         include ::Mongoid::UUID
 
-        field :identity, type: String # The identity we authorized access to.
-        field :client_uuid, type: String # Client that was granted this access token.
-        field :scope, type: String # The scope granted to this token.
-        field :expires_at, type: DateTime # When token expires for good.
-        field :revoked_at, type: DateTime # Timestamp if revoked.
+        field :identity, type: String           # The identity we authorized access to.
+        field :client_uuid, type: String        # Client that was granted this access token.
+        field :scope, type: Array, default: []               # The scope granted to this token.
+        field :expires_at, type: DateTime       # When token expires for good.
+        field :revoked_at, type: DateTime       # Timestamp if revoked.
         field :last_accessed_at, type: DateTime # Timestamp of last access using this token, rounded up to hour.
         field :prev_accessed_at, type: DateTime # Timestamp of previous access using this token, rounded up to hour.
 
@@ -37,21 +37,21 @@ module Rack
           # never expires.
           def get_token_for(identity, client, scope, expires = nil)
             raise ArgumentError, "Identity must be String or Integer (got: #{identity.inspect})" unless String === identity || Integer === identity
-            scope = Utils.normalize_scope(scope) & client.scope # Only allowed scope
+            scope = Utils.normalize_scope(scope) & Utils.normalize_scope(client.scope) # Only allowed scope
 
-            token = where( identity: identity, scope: scope, client_uuid: client.uuid, revoked_at: nil ).where(["expires_at > ? OR expires_at = ?", Time.now, nil]).first
+            token = where( identity: identity, scope: scope, client_uuid: client.uuid, revoked_at: nil ).any_of({:'expires_at.gte' => Time.now }, { expires_at: nil }).first
 
             return token ? token : create_token_for(client,scope,identity,expires)
           end
 
           # Creates a new AccessToken for the given client and scope.
           def create_token_for(client, scope, identity = nil, expires = nil)
-            expires_at = Time.now.to_i + expires if expires && expires != 0
+            expires_at = Time.now + expires if expires && expires != 0
 
             token = self.create({ scope: scope, client_uuid: client.uuid, expires_at: expires_at, identity: identity })
 
             if token
-              client.inc :tokens_granted
+              client.inc :tokens_granted, 1
               return token
             else
               raise "unable to create access token"
@@ -66,7 +66,7 @@ module Rack
           # Returns all access tokens for a given client, Use limit and offset
           # to return a subset of tokens, sorted by creation date.
           def for_client(client_uuid, offset = 0, limit = 100)
-            where( client_uuid: client_uuid ).sort(created_at:1).offset(offset).limit(limit)
+            where( client_uuid: client_uuid ).sort(created_at:1).skip(offset).limit(limit)
           end
 
           # Returns count of access tokens.
@@ -84,7 +84,7 @@ module Rack
             elsif filter.has_key?(:revoked)
               select[:revoked] = filter[:revoked] ? { :$ne=>nil } : { :$eq=>nil }
             end
-            select[:client_id] = BSON::ObjectId(filter[:client_id].to_s) if filter[:client_id]
+            select[:client_id] = filter[:client_id] if filter[:client_id]
             collection.find(select).count
           end
 
@@ -93,7 +93,7 @@ module Rack
             select = { :$gt=> { :created_at=>Time.now - 86400 * days } }
             select = {}
             if filter[:client_id]
-              select[:client_id] = BSON::ObjectId(filter[:client_id].to_s)
+              select[:client_id] = filter[:client_id]
             end
             raw = Server::AccessToken.collection.group("function (token) { return { ts: Math.floor(token.created_at / 86400) } }",
               select, { :granted=>0 }, "function (token, state) { state.granted++ }")
@@ -106,6 +106,10 @@ module Rack
           # end
         end
 
+        def identity
+          attributes['identity']
+        end
+
         # Updates the last access timestamp.
         def access!
           self.last_accessed_at = Time.now
@@ -116,7 +120,7 @@ module Rack
         def revoke!
           self.revoked_at = Time.now
           self.save
-          client = Client.where(uuid:client_uuid).inc :tokens_revoked
+          client = Client.where(uuid:client_uuid).inc :tokens_revoked, 1
         end
 
       end

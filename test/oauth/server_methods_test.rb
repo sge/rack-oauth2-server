@@ -8,9 +8,10 @@ class ServerTest < Test::Unit::TestCase
   end
 
   context "configuration" do
-    should "set oauth.database" do
-      assert_equal DATABASE, Server.database
-    end
+
+    # should "set oauth.database" do
+    #   assert_equal DATABASE, Server.database
+    # end
 
     should "set oauth.host" do
       assert_equal "example.org", Server.options.host
@@ -24,7 +25,7 @@ class ServerTest < Test::Unit::TestCase
   context "get_auth_request" do
     setup { @request = Server::AuthRequest.create(client, client.scope.join(" "), client.redirect_uri, "token", nil) }
     should "return authorization request" do
-      assert_equal @request.id, Server.get_auth_request(@request.id).id
+      assert_equal @request.uuid, Server.get_auth_request(@request.uuid).uuid
     end
 
     should "return nil if no request found" do
@@ -35,7 +36,7 @@ class ServerTest < Test::Unit::TestCase
 
   context "get_client" do
     should "return authorization request" do
-      assert_equal client.display_name, Server.get_client(client.id).display_name
+      assert_equal client.display_name, Server.get_client(client.uuid).display_name
     end
 
     should "return nil if no client found" do
@@ -52,36 +53,36 @@ class ServerTest < Test::Unit::TestCase
       end
 
       should "create new client" do
-        assert_equal 2, Server::Client.collection.count
-        assert_contains Server::Client.all.map(&:id), @client.id
+        assert_equal 2, Server::Client.count
+        assert_contains Server::Client.all.map(&:uuid), @client.uuid
       end
 
       should "set display name" do
-        assert_equal "MyApp", Server.get_client(@client.id).display_name
+        assert_equal "MyApp", Server.get_client(@client.uuid).display_name
       end
 
       should "set link" do
-        assert_equal "http://example.org", Server.get_client(@client.id).link
+        assert_equal "http://example.org", Server.get_client(@client.uuid).link
       end
 
       should "set image URL" do
-        assert_equal "http://example.org/favicon.ico", Server.get_client(@client.id).image_url
+        assert_equal "http://example.org/favicon.ico", Server.get_client(@client.uuid).image_url
       end
 
       should "set redirect URI" do
-        assert_equal "http://example.org/oauth/callback", Server.get_client(@client.id).redirect_uri
+        assert_equal "http://example.org/oauth/callback", Server.get_client(@client.uuid).redirect_uri
       end
 
       should "set scope" do
-        assert_equal %w{read write}, Server.get_client(@client.id).scope
+        assert_equal %w{read write}, Server.get_client(@client.uuid).scope
       end
 
       should "assign client an ID" do
-        assert_match /[0-9a-f]{24}/, @client.uuid.to_s
+        assert_match ACCESS_TOKEN_REGEX, @client.uuid.to_s
       end
 
       should "assign client a secret" do
-        assert_match /[0-9a-f]{64}/, @client.secret
+        assert_match ACCESS_TOKEN_REGEX, @client.secret
       end
     end
 
@@ -89,11 +90,11 @@ class ServerTest < Test::Unit::TestCase
 
       context "no such client" do
         setup do
-          @client = Server.register(:id=>"4ce24c423321e88ac5000015", :secret=>"foobar", :display_name=>"MyApp")
+          @client = Server.register(:uuid=>"4ce24c423321e88ac5000015", :secret=>"foobar", :display_name=>"MyApp")
         end
 
         should "create new client" do
-          assert_equal 2, Server::Client.collection.count
+          assert_equal 2, Server::Client.count
         end
 
         should "should assign it the client identifier" do
@@ -111,12 +112,12 @@ class ServerTest < Test::Unit::TestCase
 
       context "existing client" do
         setup do
-          Server.register(:id=>"4ce24c423321e88ac5000015", :secret=>"foobar", :display_name=>"MyApp")
-          @client = Server.register(:id=>"4ce24c423321e88ac5000015", :secret=>"foobar", :display_name=>"Rock Star")
+          Server.register(:uuid=>"4ce24c423321e88ac5000015", :secret=>"foobar", :display_name=>"MyApp")
+          @client = Server.register(:uuid=>"4ce24c423321e88ac5000015", :secret=>"foobar", :display_name=>"Rock Star")
         end
 
         should "not create new client" do
-          assert_equal 2, Server::Client.collection.count
+          assert_equal 2, Server::Client.count
         end
 
         should "should not change the client identifier" do
@@ -154,6 +155,7 @@ class ServerTest < Test::Unit::TestCase
       basic_authorize client.id, client.secret
       post "/oauth/access_token", :scope=>"read", :grant_type=>"authorization_code", :code=>code, :redirect_uri=>client.redirect_uri
       @token = JSON.parse(last_response.body)["access_token"]
+      assert @token.present?, "Access token is not present, response from server was: #{last_response.body}"
     end
 
     should "resolve into an access token" do
@@ -176,7 +178,7 @@ class ServerTest < Test::Unit::TestCase
       setup { @code = Server.access_grant("Batman", client.uuid) }
 
       should "pick client scope" do
-        assert_equal %w{oauth-admin read write}, Server::AccessGrant.from_code(@code).scope
+        assert_equal %w{oauth-admin read write}.sort, Server::AccessGrant.from_code(@code).scope.sort
       end
     end
 
@@ -241,7 +243,7 @@ class ServerTest < Test::Unit::TestCase
       setup { @token = Server.token_for("Batman", client.id) }
 
       should "pick client scope" do
-        assert_equal %w{oauth-admin read write}, Server::AccessToken.from_token(@token).scope
+        assert_equal %w{oauth-admin read write}.sort, Server::AccessToken.from_token(@token).scope.sort
       end
     end
   end
@@ -251,7 +253,7 @@ class ServerTest < Test::Unit::TestCase
     setup { @token = Server.token_for("Batman", client.id, %w{read write}) }
 
     should "return access token" do
-      assert_match /[0-9a-f]{32}/, @token
+      assert_match ACCESS_TOKEN_REGEX, @token
     end
 
     should "associate token with client" do

@@ -250,12 +250,12 @@ module Rack
               :url=>"#{request.script_name}/api/client/#{client.id}",
               :revoke=>"#{request.script_name}/api/client/#{client.id}/revoke",
               :history=>"#{request.script_name}/api/client/#{client.id}/history",
-              :created=>client.created_at, :revoked=>client.revoked }
+              :created=>client.created_at, :revoked_at=>client.revoked_at }
           end
 
           def token_as_json(token)
             { :token=>token.token, :identity=>token.identity, :scope=>token.scope, :created=>token.created_at,
-              :expired=>token.expires_at, :revoked=>token.revoked,
+              :expired=>token.expires_at, :revoked_at=>token.revoked_at,
               :link=>settings.template_url && settings.template_url.gsub("{id}", token.identity),
               :last_access=>token.last_access,
               :revoke=>"#{request.script_name}/api/token/#{token.token}/revoke" }

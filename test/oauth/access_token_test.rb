@@ -61,7 +61,8 @@ class AccessTokenTest < Test::Unit::TestCase
   end
   
   def expire
-    Rack::OAuth2::Server::AccessToken.collection.update({ :_id => @token }, { :$set=> { :expires_at => (Time.now - 1).to_i } })
+    access_token = Rack::OAuth2::Server::AccessToken.where({ uuid: @token }).first
+    access_token.update_attribute :expires_at, Time.now - 1
   end
   
   def with_expired_token
@@ -296,7 +297,7 @@ class AccessTokenTest < Test::Unit::TestCase
     end
     
     should "expire in a day" do
-      a_day_later = (Time.now + (60 * 60 * 24) + 1).to_i
+      a_day_later = Time.now + 1.day
       assert @other_token.expires_at < a_day_later
     end
       

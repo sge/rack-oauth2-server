@@ -28,7 +28,7 @@ Rake::TestTask.new do |task|
   elsif Rake.application.options.silent
     task.ruby_opts << "-W0"
   else
-    task.verbose = true
+    task.verbose = false
   end
     task.ruby_opts << "-I."
 end
@@ -75,7 +75,10 @@ task :push=>["test:all", "build"] do
 end
 
 task :default do
-  task("test").invoke
+  begin
+    task("test").invoke
+  rescue
+  end
 end
 
 

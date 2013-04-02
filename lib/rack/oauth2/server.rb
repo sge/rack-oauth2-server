@@ -90,7 +90,13 @@ module Rack
         # @return [String] Access grant authorization code
         def access_grant(identity, client_id, scope = nil, expires_in = nil)
           client = get_client(client_id) or fail "No such client"
-          AccessGrant.create(identity, client, scope || client.scope, nil, expires_in).code
+          AccessGrant.create({ 
+            identity: identity, 
+            client_uuid: client.uuid, 
+            redirect_uri: client.redirect_uri,
+            scope: scope || client.scope, 
+            expires_at: expires_in
+          }).code
         end
 
         # Returns AccessToken from token.
@@ -384,7 +390,6 @@ module Rack
         if status == 403
           auth_request.deny!
         else
-          puts "~~~~>>> GRANTING WITH oauth.identity BRO!! WHICH IS: #{headers["oauth.identity"]}"
           auth_request.grant! headers["oauth.identity"], options.expires_in
         end
         # 3.1.  Authorization Response
@@ -428,9 +433,11 @@ module Rack
             raise InvalidGrantError, "Wrong client" unless grant && client.uuid == grant.client_uuid
 
             unless client.redirect_uri.nil? || client.redirect_uri.to_s.empty?
-              raise InvalidGrantError, "Wrong redirect URI" unless grant.redirect_uri == Utils.parse_redirect_uri(request.POST["redirect_uri"]).to_s
+              unless grant.redirect_uri == Utils.parse_redirect_uri(request.POST["redirect_uri"]).to_s
+                raise InvalidGrantError, "Wrong redirect URI" 
+              end
             end
-            raise InvalidGrantError, "This access grant expired" if grant.expires_at && grant.expires_at <= Time.now.to_i
+            raise InvalidGrantError, "This access grant expired" if grant.expires_at && grant.expires_at <= Time.now
             access_token = grant.authorize!(options.expires_in)
           when "password"
             raise UnsupportedGrantType unless options.authenticator

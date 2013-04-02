@@ -17,7 +17,8 @@ ENV["RACK_ENV"] = "test"
 ENV["DB"] = "rack_oauth2_server_test"
 # DATABASE = Mongo::Connection.new[ENV["DB"]]
 FRAMEWORK = ENV["FRAMEWORK"] || "sinatra"
-
+# ACCESS_TOKEN_REGEX = /[a-f0-9]{32}/i
+ACCESS_TOKEN_REGEX = /[a-f0-9\-]{32}/i
 
 Mongoid.load!("./test/mongoid.yml", :test)
 
