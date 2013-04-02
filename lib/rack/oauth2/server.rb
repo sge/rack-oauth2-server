@@ -552,10 +552,11 @@ module Rack
           raise InvalidGrantError, "missing audience claim" if !validated_payload.has_key?('aud')
           raise InvalidGrantError, "missing expiration claim" if !validated_payload.has_key?('exp')
 
-          expires = validated_payload['exp'].to_i
+
+          expires = Time.at(validated_payload['exp'].to_i)
           # add a 10 minute fudge factor for clock skew between servers
-          skewed_expires_time = expires + (10 * 60)
-          now = Time.now.utc.to_i
+          skewed_expires_time = expires + 10.minutes
+          now = Time.now
           raise InvalidGrantError, "expired claims" if skewed_expires_time <= now
           principal = validated_payload['prn']
           principal

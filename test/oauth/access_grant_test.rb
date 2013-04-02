@@ -347,7 +347,7 @@ class AccessGrantTest < Test::Unit::TestCase
 
     context "JWT" do
       setup {
-        @hour_from_now = Time.now + 1.hour
+        @hour_from_now = ( Time.now + 1.hour ).to_i
       }
       context "malformed assertion" do
         setup { request_with_assertion "urn:ietf:params:oauth:grant-type:jwt-bearer", "myassertion" }
