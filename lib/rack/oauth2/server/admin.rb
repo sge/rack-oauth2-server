@@ -146,12 +146,15 @@ module Rack
 
         get "/api/clients" do
           content_type "application/json"
-          json = { :list=>Server::Client.all.map { |client| client_as_json(client) },
-                   :scope=>Server::Utils.normalize_scope(settings.scope),
-                   :history=>"#{request.script_name}/api/clients/history",
-                   :tokens=>{ :total=>Server::AccessToken.count, :week=>Server::AccessToken.count(:days=>7),
-                              :revoked=>Server::AccessToken.count(:days=>7, :revoked=>true) } }
-          json.to_json
+          {  :list => Server::Client.all.map { |client| client_as_json(client) },
+             :scope   => Server::Utils.normalize_scope(settings.scope),
+             :history => "#{request.script_name}/api/clients/history",
+             :tokens  => { 
+               :total   => Server::AccessToken.count, 
+               :week    => Server::AccessToken.where(:created_at.gte => (Time.now - 7.days).to_datetime).count,
+               :revoked => Server::AccessToken.where(:revoked_at.gte => (Time.now - 7.days).to_datetime).excludes(:revoked_at=>nil).count
+            }
+          }.to_json
         end
 
         get "/api/clients/history" do
@@ -183,7 +186,7 @@ module Rack
           json[:tokens][:next] = "#{request.script_name}/client/#{params[:id]}?page=#{page + 1}" if total > page * settings.tokens_per_page
           json[:tokens][:previous] = "#{request.script_name}/client/#{params[:id]}?page=#{page - 1}" if page > 1
           json[:tokens][:total] = Server::AccessToken.count(:client_uuid=>client.uuid)
-          json[:tokens][:week] = Server::AccessToken.where(:client_uuid=>client.uuid, :'created_at.gte' => Date.today - 7.days)
+          json[:tokens][:week] = Server::AccessToken.where(:client_uuid=>client.uuid, :'created_at.gte' => Date.today - 7.days).count
           json[:tokens][:revoked] = Server::AccessToken.where(:client_uuid=>client.uuid, :'created_at.gte' => Date.today - 7.days).excludes(:revoked_at=>nil).count
 
           json.to_json
