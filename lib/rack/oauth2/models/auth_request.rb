@@ -50,7 +50,8 @@ module Rack
               identity: identity, 
               client_uuid: client.uuid, 
               scope: scope, 
-              redirect_uri: redirect_uri
+              redirect_uri: redirect_uri,
+              expires_at: Time.now + 300
             })
             self.grant_code = access_grant.code
             self.save
