@@ -175,16 +175,16 @@ module Rack
 
           page = [params[:page].to_i, 1].max
           offset = (page - 1) * settings.tokens_per_page
-          total = Server::AccessToken.count(:client_id=>client.id)
+          total = Server::AccessToken.count(:client_uuid=>client.uuid)
           tokens = Server::AccessToken.for_client(params[:id], offset, settings.tokens_per_page)
           json[:tokens] = { :list=>tokens.map { |token| token_as_json(token) } }
           json[:tokens][:total] = total
           json[:tokens][:page] = page
           json[:tokens][:next] = "#{request.script_name}/client/#{params[:id]}?page=#{page + 1}" if total > page * settings.tokens_per_page
           json[:tokens][:previous] = "#{request.script_name}/client/#{params[:id]}?page=#{page - 1}" if page > 1
-          json[:tokens][:total] = Server::AccessToken.count(:client_id=>client.id)
-          json[:tokens][:week] = Server::AccessToken.count(:client_id=>client.id, :days=>7)
-          json[:tokens][:revoked] = Server::AccessToken.count(:client_id=>client.id, :days=>7, :revoked=>true)
+          json[:tokens][:total] = Server::AccessToken.count(:client_uuid=>client.uuid)
+          json[:tokens][:week] = Server::AccessToken.where(:client_uuid=>client.uuid, :'created_at.gte' => Date.today - 7.days)
+          json[:tokens][:revoked] = Server::AccessToken.where(:client_uuid=>client.uuid, :'created_at.gte' => Date.today - 7.days).excludes(:revoked_at=>nil).count
 
           json.to_json
         end

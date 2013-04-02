@@ -275,7 +275,7 @@ module Rack
           begin
             access_token = AccessToken.from_token(token)
             raise InvalidTokenError if access_token.nil? || access_token.revoked_at.present?
-            raise ExpiredTokenError if access_token.expires_at && access_token.expires_at <= Time.now.to_i
+            raise ExpiredTokenError if access_token.expires_at && access_token.expires_at <= Time.now
             request.env["oauth.access_token"] = token
 
             request.env["oauth.identity"] = access_token.identity
@@ -287,7 +287,7 @@ module Rack
             return unauthorized(request, error)
           rescue =>ex
             logger.info "RO2S: HTTP authorization failed #{ex.message}" if logger
-            return unauthorized(request)
+            return unauthorized(request,"HTTP authorization failed; #{ex.message}")
           end
 
           # We expect application to use 403 if request has insufficient scope,
@@ -306,7 +306,7 @@ module Rack
           if response[1] && response[1].delete("oauth.no_access")
             logger.debug "RO2S: Unauthorized request" if logger
             # OAuth access required.
-            return unauthorized(request)
+            return unauthorized(request,"Unauthorized request")
           elsif response[1] && response[1]["oauth.authorization"]
             # 3.  Obtaining End-User Authorization
             # Flow ends here.
@@ -519,8 +519,9 @@ module Rack
 
       # Returns WWW-Authenticate header.
       def unauthorized(request, error = nil)
+        error = Exception.new(error) if error.is_a?(String)
         challenge = 'OAuth realm="%s"' % (options.realm || request.host)
-        challenge << ', error="%s", error_description="%s"' % [error.code, error.message] if error
+        challenge << ', error="%s", error_description="%s"' % [error.code, error.message] if error && error.respond_to?(:code)
         return [401, { "WWW-Authenticate"=>challenge }, [error && error.message || ""]]
       end
 
