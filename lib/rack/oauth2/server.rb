@@ -243,16 +243,17 @@ module Rack
 
       def call(env)
         request = OAuthRequest.new(env)
+
         return @app.call(env) if options.host && options.host != request.host
-        return @app.call(env) if options.path && request.path.index(options.path) != 0
+        return @app.call(env) if options.path && request.dispatch_path.index(options.path) != 0
 
         logger = options.logger || env["rack.logger"]
 
         # 3.  Obtaining End-User Authorization
         # Flow starts here.
-        return request_authorization(request, logger) if request.path == options.authorize_path
+        return request_authorization(request, logger) if request.dispatch_path == options.authorize_path
         # 4.  Obtaining an Access Token
-        if request.path == options.access_token_path
+        if request.dispatch_path == options.access_token_path
           if env['CONTENT_TYPE'] =~ /^application\/json/ && request.post?
             env.update({
               'rack.request.form_hash' => ActiveSupport::JSON.decode(env['rack.input'].read),
@@ -579,6 +580,10 @@ module Rack
         # Returns authorization header.
         def authorization
           @authorization ||= AUTHORIZATION_KEYS.inject(nil) { |auth, key| auth || @env[key] }
+        end
+
+        def dispatch_path
+          @env['SCRIPT_NAME'].present? ? self.path.gsub(@env['SCRIPT_NAME'],'') : self.path
         end
 
         # True if authentication scheme is OAuth.
