@@ -51,7 +51,7 @@ module Rack
             token = self.create({ scope: scope, client_uuid: client.uuid, expires_at: expires_at, identity: identity })
 
             if token
-              client.inc :tokens_granted, 1
+              client.inc({ tokens_granted: 1 })
               return token
             else
               raise "unable to create access token"
