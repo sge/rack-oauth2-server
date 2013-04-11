@@ -483,8 +483,11 @@ module Rack
         rescue OAuthError=>error
           logger.error "RO2S: Access token request error #{error.code}: #{error.message}" if logger
           return unauthorized(request, error) if InvalidClientError === error && request.basic?
-          return [400, { "Content-Type"=>"application/json", "Cache-Control"=>"no-store" }, 
-                  [{ :error=>error.code, :error_description=>error.message }.to_json]]
+
+          response_payload = { error: error.code, error_description: error.message }.merge( error.respond_to?(:response_meta) ? error.response_meta : {})
+
+          return [ 400, { "Content-Type"=>"application/json", "Cache-Control"=>"no-store" }, 
+                  [response_payload.to_json] ]
         end
       end
 
