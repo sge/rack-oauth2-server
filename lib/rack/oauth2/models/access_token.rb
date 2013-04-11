@@ -120,7 +120,7 @@ module Rack
         def revoke!
           self.revoked_at = Time.now
           self.save
-          client = Client.where(uuid:client_uuid).inc :tokens_revoked, 1
+          client = Client.where(uuid:client_uuid).inc(tokens_revoked: 1)
         end
 
       end
