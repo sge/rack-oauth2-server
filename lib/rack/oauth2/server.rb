@@ -610,7 +610,7 @@ module Rack
         end
 
         def xml?
-          @env['HTTP_ACCEPT'].include?('application/xml') || @env['HTTP_ACCEPT'].include?('application/xhtml+xml')
+          @env['HTTP_ACCEPT'].present? && ( @env['HTTP_ACCEPT'].include?('application/xml') || @env['HTTP_ACCEPT'].include?('application/xhtml+xml') )
         end
 
         # If Basic auth, returns username/password, if OAuth, returns access
