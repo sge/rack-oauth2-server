@@ -480,14 +480,14 @@ module Rack
           response[:scope] = access_token.scope.join(" ")
 
 
-          return request.response_with_format( 200, { "Cache-Control"=>"no-store" }, [ response ] )
+          return request.response_with_format(200,{},[response])
           # 4.3.  Error Response
         rescue OAuthError=>error
           logger.error "RO2S: Access token request error #{error.code}: #{error.message}" if logger
           return unauthorized(request, error) if InvalidClientError === error && request.basic?
 
           response_payload = { error: error.code, error_description: error.message }.merge( error.respond_to?(:response_meta) ? error.response_meta : {})
-          return request.response_with_format 400, { "Cache-Control"=>"no-store" }, [ response_payload ]
+          return request.response_with_format(400,{},[response_payload])
         end
       end
 
@@ -579,7 +579,7 @@ module Rack
       class OAuthRequest < Rack::Request
 
         def response_headers(hsh={})
-          { 'Content-Type' => xml? ? 'application/xml' : 'application/json' }.merge(hsh)
+          { 'Content-Type' => xml? ? 'application/xml' : 'application/json', 'Cache-Control' => 'no-store' }.merge(hsh)
         end
 
         def response_with_format(*rack_response)
