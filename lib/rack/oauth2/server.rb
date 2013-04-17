@@ -478,13 +478,15 @@ module Rack
           logger.info "RO2S: Access token #{access_token.token} granted to client #{client.display_name}, identity #{access_token.identity}" if logger
           response = { :access_token=>access_token.token }
           response[:scope] = access_token.scope.join(" ")
-          return [200, { "Content-Type"=>"application/json", "Cache-Control"=>"no-store" }, [response.to_json]]
+
+
+          return request.response_with_format( 200, { "Cache-Control"=>"no-store" }, [ response ] )
           # 4.3.  Error Response
         rescue OAuthError=>error
           logger.error "RO2S: Access token request error #{error.code}: #{error.message}" if logger
           return unauthorized(request, error) if InvalidClientError === error && request.basic?
-          return [400, { "Content-Type"=>"application/json", "Cache-Control"=>"no-store" }, 
-                  [{ :error=>error.code, :error_description=>error.message }.to_json]]
+          return request.response_with_format( 400, { "Cache-Control"=>"no-store" }, 
+                  [{ :error=>error.code, :error_description=>error.message }] )
         end
       end
 
@@ -575,6 +577,16 @@ module Rack
       # credentials.
       class OAuthRequest < Rack::Request
 
+        def response_headers(hsh={})
+          { 'Content-Type' => xml? ? 'application/xml' : 'application/json' }.merge(hsh)
+        end
+
+        def response_with_format(*rack_response)
+          rack_response[2] = [ xml? ? rack_response[2].first.to_xml(root: 'oauth-response') : rack_response[2].first.to_json ]
+          rack_response[1] = response_headers(rack_response[1])
+          rack_response
+        end
+
         AUTHORIZATION_KEYS = %w{HTTP_AUTHORIZATION X-HTTP_AUTHORIZATION X_HTTP_AUTHORIZATION}
 
         # Returns authorization header.
@@ -594,6 +606,10 @@ module Rack
         # True if authentication scheme is Basic.
         def basic?
           authorization[/^basic/i] if authorization
+        end
+
+        def xml?
+          @env['HTTP_ACCEPT'].include?('application/xml') || @env['HTTP_ACCEPT'].include?('application/xhtml+xml')
         end
 
         # If Basic auth, returns username/password, if OAuth, returns access
