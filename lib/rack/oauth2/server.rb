@@ -485,8 +485,9 @@ module Rack
         rescue OAuthError=>error
           logger.error "RO2S: Access token request error #{error.code}: #{error.message}" if logger
           return unauthorized(request, error) if InvalidClientError === error && request.basic?
-          return request.response_with_format( 400, { "Cache-Control"=>"no-store" }, 
-                  [{ :error=>error.code, :error_description=>error.message }] )
+
+          response_payload = { error: error.code, error_description: error.message }.merge( error.respond_to?(:response_meta) ? error.response_meta : {})
+          return request.response_with_format 400, { "Cache-Control"=>"no-store" }, [ response_payload ]
         end
       end
 
